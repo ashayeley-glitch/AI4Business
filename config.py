@@ -106,11 +106,11 @@ MITIGATION_TEMPLATES = {
 
 # ── Ethics & Standards Brief ─────────────────────────────────────
 ETHICS_BRIEF = {
-    "title": "Security, Ethics & Legal Standards Alignment",
-    "gdpr_compliance": "System implements data minimization by focusing only on security-relevant fields. IP addresses are treated as sensitive identifiers.",
-    "ethical_ai": "AI analysis is used as a decision-support tool, not an autonomous agent. All mitigations require human review before deployment.",
-    "legal_alignment": "Analysis remains within the boundaries of corporate security monitoring policies and local data protection laws (e.g., CCPA/GDPR).",
-    "privacy_standards": "Raw log data is stored locally. No personally identifiable information (PII) beyond usernames and IPs is processed through AI engines.",
+    "title": "Security, Ethics & Legal Ghana Context",
+    "gdpr_compliance": "Aligned with Ghana's Data Protection Act, 2012 (Act 843). System implements data minimization and treats IPs as sensitive identifiers.",
+    "ethical_ai": "AI analysis is a decision-support tool. All mitigations require human review, ensuring accountability under Act 1038 standards.",
+    "legal_alignment": "Compliant with Ghana's Cybersecurity Act, 2020 (Act 1038), ensuring reporting and protection of critical information assets.",
+    "privacy_standards": "Processing follows CSA (Cyber Security Authority) guidelines for incident response and locally managed data sovereignty.",
 }
 
 # ── AI Prompt ────────────────────────────────────────────────────

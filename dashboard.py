@@ -65,6 +65,16 @@ st.markdown("""
         border-radius: 8px;
         margin-bottom: 20px;
     }
+
+    /* Print Optimization */
+    @media print {
+        header, [data-testid="stSidebar"], [data-testid="stHeader"], .stTabs button, .print-hide {
+            display: none !important;
+        }
+        .stApp { background: white !important; }
+        .block-container { padding: 0 !important; }
+        .stDataFrame { border: none !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,8 +87,12 @@ REPORT_PATH = DATA_DIR / "threat_report.json"
 
 # Import from config if possible (to keep consistent)
 try:
+    import config
     from config import SEVERITY_COLORS, ETHICS_BRIEF
 except ImportError:
+    import types
+    config = types.ModuleType("config")
+    config.OPENAI_API_KEY = ""
     SEVERITY_COLORS = {"Critical": "#dc2626", "High": "#ea580c", "Medium": "#d97706", "Low": "#2563eb", "Info": "#475569"}
     ETHICS_BRIEF = {}
 
@@ -94,6 +108,8 @@ def load_report():
     with open(REPORT_PATH, "r", encoding="utf-8") as f:
         report = json.load(f)
     events = pd.DataFrame(report["events"])
+    if "is_threat" in events.columns:
+        events["is_threat"] = events["is_threat"].astype(bool)
     if "timestamp" in events.columns:
         events["timestamp"] = pd.to_datetime(events["timestamp"], errors="coerce")
     return report["summary"], events
@@ -121,13 +137,34 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
+    st.markdown("### 🔑 API Configuration")
+    api_key_input = st.text_input(
+        "OpenAI API Key",
+        value=st.session_state.get("custom_api_key", ""),
+        type="password",
+        help="Enter your OpenAI API key here. It will be used for the current session only.",
+        placeholder="sk-..."
+    )
+    if api_key_input:
+        st.session_state["custom_api_key"] = api_key_input
+        config.OPENAI_API_KEY = api_key_input
+
+    st.divider()
     st.markdown("### Project Task Alignment")
     st.info("✓ Log Analysis\n✓ Anomaly Detection\n✓ AI Mitigation\n✓ Ethical Standards")
 
 
 # ── Main Content ─────────────────────────────────────────────────
 
-st.title("🛡️ Cybersecurity Analysis Dashboard")
+st.title("🛡️ CyberShield AI — Cybersecurity Hub")
+st.markdown("""
+<div class="ethics-card" style="background: #f1f5f9; border-left-color: #64748b;">
+    <strong>Guided Workflow:</strong> 
+    (1) Detect Anomalies & Attack Patterns &nbsp;➔&nbsp; 
+    (2) Analyze Forensic Log Data &nbsp;➔&nbsp; 
+    (3) Review Regional Legal Compliance (Ghana Act 843/1038)
+</div>
+""", unsafe_allow_html=True)
 
 summary, events_df = load_report()
 
@@ -135,25 +172,49 @@ if summary is None or events_df is None:
     st.warning("⚠️ No forensic data available. Please run the AI Discovery Pipeline in the sidebar.")
     st.stop()
 
-# Tabs for Deliverables
-tab_demo, tab_report, tab_ethics = st.tabs([
-    "🔍 Threat Detection Demo", 
-    "📊 Forensic Analysis Reports", 
-    "⚖️ Security & Ethics Brief"
-])
+# Guided Navigation State
+if "current_step" not in st.session_state:
+    st.session_state.current_step = 0
 
-# ── Tab 1: Threat Detection Demo ────────────────────────────────
+# Tab-like Radio Navigation
+step_labels = [
+    "1️⃣ Step 1: Threat Detection", 
+    "2️⃣ Step 2: Forensic Reporting", 
+    "3️⃣ Step 3: Security & Ethics Brief"
+]
 
-with tab_demo:
+selected_step = st.radio(
+    "Navigation Drive",
+    options=range(len(step_labels)),
+    format_func=lambda x: step_labels[x],
+    index=st.session_state.current_step,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="nav_radio"
+)
+
+# Update state if radio manual change
+if selected_step != st.session_state.current_step:
+    st.session_state.current_step = selected_step
+
+# Assign views based on selected_step
+show_demo = (selected_step == 0)
+show_report = (selected_step == 1)
+show_ethics = (selected_step == 2)
+
+# ── Step 1: Threat Detection ──────────────────────────────────
+if show_demo:
     st.markdown("## AI-Driven Anomaly Detection")
     st.markdown("Visualizing identified attack patterns and ChatGPT-generated mitigations.")
 
     # KPI Row
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     col1.metric("Anomalies Identified", summary["total_threats"])
     col2.metric("Critical Alerts", summary["critical_count"])
-    col3.metric("Analysis Confidence", f"{summary['avg_confidence']}%")
-    col4.metric("Engine", "ChatGPT (GPT-4o)")
+    col3.metric("High Alerts", summary.get("high_count", 0))
+    col4.metric("Medium Alerts", summary.get("medium_count", 0))
+    col5.metric("Analysis Confidence", f"{summary['avg_confidence']}%")
+    col6.metric("Engine", "ChatGPT (GPT-4o)")
 
     st.divider()
 
@@ -194,10 +255,14 @@ with tab_demo:
     else:
         st.success("No critical anomalies detected in current batch.")
 
+    st.divider()
+    if st.button("➡️ Proceed to Step 2: Forensic Analysis", use_container_width=True):
+        st.session_state.current_step = 1
+        st.rerun()
 
-# ── Tab 2: Forensic Analysis Reports ───────────────────────────
 
-with tab_report:
+# ── Step 2: Forensic Reporting ────────────────────────────────
+if show_report:
     st.markdown("## Forensic Log Analysis Report")
     st.markdown("Detailed breakdown of all security events for compliance and auditing.")
 
@@ -206,29 +271,44 @@ with tab_report:
     
     filtered_df = events_df[events_df["severity"].isin(f_sev)].copy()
     
-    # Download Button
-    csv = convert_df_to_csv(filtered_df)
-    st.download_button(
-        label="📥 Download Forensic Report (CSV)",
-        data=csv,
-        file_name=f'threat_report_{datetime.now().strftime("%Y%m%d")}.csv',
-        mime='text/csv',
-    )
+    # Action Buttons Row
+    c_btn1, c_btn2, _ = st.columns([1, 1, 2])
+    with c_btn1:
+        csv = convert_df_to_csv(filtered_df)
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv,
+            file_name=f'threat_report_{datetime.now().strftime("%Y%m%d")}.csv',
+            mime='text/csv',
+            use_container_width=True,
+        )
+    with c_btn2:
+        if st.button("🖨️ Print Report", use_container_width=True):
+            st.components.v1.html("<script>window.print();</script>", height=0)
 
-    st.dataframe(
-        filtered_df[["timestamp", "severity", "category", "source_ip", "description", "confidence"]],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "timestamp": st.column_config.DatetimeColumn("Event Time"),
-            "confidence": st.column_config.ProgressColumn("AI Confidence", format="%d%%", min_value=0, max_value=100)
-        }
-    )
+    st.markdown('<div class="print-hide"><br></div>', unsafe_allow_html=True)
+
+    if filtered_df.empty:
+        st.info("ℹ️ No events match the selected filters.")
+    else:
+        st.dataframe(
+            filtered_df[["timestamp", "severity", "category", "source_ip", "description", "confidence"]],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "timestamp": st.column_config.DatetimeColumn("Event Time"),
+                "confidence": st.column_config.ProgressColumn("AI Confidence", format="%d%%", min_value=0, max_value=100)
+            }
+        )
+    
+    st.divider()
+    if st.button("➡️ Proceed to Step 3: Security & Ethics Brief", use_container_width=True):
+        st.session_state.current_step = 2
+        st.rerun()
 
 
-# ── Tab 3: Security & Ethics Brief ─────────────────────────────
-
-with tab_ethics:
+# ── Step 3: Security & Ethics Brief ─────────────────────────────
+if show_ethics:
     st.markdown(f"## {ETHICS_BRIEF.get('title', 'Security & Ethics Brief')}")
     
     st.markdown("""
